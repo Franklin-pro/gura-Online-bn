@@ -25,7 +25,7 @@ router.patch('/:id', protectRoute, isAdmin, toggleFeaturedProduct);
 router.delete('/:id', protectRoute, isAdmin, deleteProduct);
 
 // Create and list at the bottom
-router.get('/', protectRoute, getProducts);
+router.get('/', getProducts);
 router.post('/', protectRoute, isAdmin, createProduct);
 
 
