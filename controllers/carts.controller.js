@@ -66,6 +66,35 @@ export const deleteAllFromCart = async (req, res) => {
     }
 }
 
+export const deleteOneCart = async (req, res) => {
+  try {
+    const { id } = req.params; // Get ID from URL params
+    const user = req.user;
+
+    const itemIndex = user.cartItem.findIndex(item => 
+      item._id.toString() === id // Compare cart item ID
+    );
+
+    if (itemIndex === -1) {
+      return res.status(404).json({ message: 'Item not found in cart' });
+    }
+
+    // Remove the item completely
+    user.cartItem.splice(itemIndex, 1);
+    await user.save();
+
+    return res.status(200).json({ 
+      message: 'Item removed from cart',
+      removedItemId: id 
+    });
+
+  } catch (error) {
+    console.log("Error deleting from cart:", error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+
 export const updateQuantity = async (req, res) => {
     try {
         const { productId, quantity } = req.body;
