@@ -190,3 +190,88 @@ export const getProductById = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+
+export const addRates = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { rating } = req.body;
+        const userId = req.user._id;
+
+        // Validate rating
+        if (typeof rating !== 'number' || rating < 1 || rating > 5) {
+            return res.status(400).json({ 
+                success: false,
+                message: "Rating must be a number between 1 and 5" 
+            });
+        }
+
+        const product = await Product.findById(id);
+        if (!product) {
+            return res.status(404).json({ 
+                success: false,
+                message: "Product not found" 
+            });
+        }
+
+        // Check if user already has a review
+        const existingReviewIndex = product.reviews.findIndex(
+            review => review.user.equals(userId)
+        );
+
+        if (existingReviewIndex >= 0) {
+            // Update existing review rating
+            product.reviews[existingReviewIndex].rating = rating;
+        } else {
+            // Add new review
+            product.reviews.push({
+                user: userId,
+                rating: rating
+            });
+            product.ratingCount += 1;
+        }
+
+        // Calculate new average rating
+        const totalRatings = product.reviews.reduce(
+            (sum, review) => sum + review.rating, 0
+        );
+        product.rating = totalRatings / product.reviews.length;
+
+        await product.save();
+
+        res.status(200).json({
+            success: true,
+            message: "Rating submitted successfully",
+            data: {
+                newAverageRating: product.rating,
+                newRatingCount: product.reviews.length
+            }
+        });
+    } catch (error) {
+        console.error("Error adding rating:", error);
+        res.status(500).json({ 
+            success: false,
+            message: error.message || "Internal server error" 
+        });
+    }
+}
+
+export const getProductRates = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const product = await Product.findById(id);
+        if (!product) {
+            return res.status(404).json({ message: "Product not found" });
+        }
+        const averageRate = product.rates.reduce((sum, rate) => sum + rate, 0) / product.rates.length || 0;
+        res.status(200).json({
+            success: true,
+            message: "Product rates fetched successfully",
+            data: {
+                averageRate: parseFloat(averageRate.toFixed(2)),
+                totalRates: product.rates.length
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};

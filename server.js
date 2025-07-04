@@ -8,6 +8,7 @@ import cartRoutes from './routes/carts.routes.js';
 import couponRoutes from './routes/coupon.routes.js';
 import paymentRoutes from './routes/payment.routes.js';
 import analyticsRoutes from './routes/analytic.routes.js';
+import ordersRoutes from './routes/orders.routes.js';
 import cors from 'cors';
 
 
@@ -26,6 +27,7 @@ app.use('/api/v1/carts', cartRoutes);
 app.use('/api/v1/coupons',couponRoutes);
 app.use('/api/v1/payments', paymentRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
+app.use('/api/v1/orders',ordersRoutes)
 
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);

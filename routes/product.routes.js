@@ -7,7 +7,9 @@ import {
     recomandationProducts,
     getProductsByCategory,
     toggleFeaturedProduct,
-    getProductById
+    getProductById,
+    addRates,
+    getProductRates
 } from '../controllers/products.controller.js';
 
 import protectRoute, { isAdmin } from '../middleware/auth.middleware.js';
@@ -26,7 +28,10 @@ router.delete('/:id', protectRoute, isAdmin, deleteProduct);
 
 // Create and list at the bottom
 router.get('/', getProducts);
+router.get('/rates', protectRoute,getProductRates); // Assuming this is for admin to see all products with rates
 router.post('/', protectRoute, isAdmin, createProduct);
+router.post('/:id/rate',protectRoute,addRates);
+
 
 
 export default router;
