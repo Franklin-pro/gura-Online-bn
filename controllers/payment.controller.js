@@ -77,7 +77,12 @@ export const createCheckoutSession = async (req, res) => {
 
 export const checkoutSuccess = async (req, res) => {
   try {
-    const { sessionId } = req.body;
+    const { sessionId, shippingAddress } = req.body; // Add shippingAddress here
+    
+    if (!shippingAddress) {
+      return res.status(400).json({ message: "Shipping address is required" });
+    }
+
     const session = await stripe.checkout.sessions.retrieve(sessionId);
 
     if (session.payment_status === "paid") {
@@ -91,25 +96,26 @@ export const checkoutSuccess = async (req, res) => {
         );
       }
 
-      // ✅ Now this will correctly match the schema
-     const products = JSON.parse(session.metadata.products);
+      const products = JSON.parse(session.metadata.products);
 
-// Validate products
-if (!products || !Array.isArray(products) || products.some(p => !p.product)) {
-  throw new Error('Invalid products data in session metadata');
-}
+      // Validate products
+      if (!products || !Array.isArray(products) || products.some(p => !p.product)) {
+        throw new Error('Invalid products data in session metadata');
+      }
 
-const newOrder = new Order({
-  user: session.metadata.userId,
-  products: products.map((product) => ({
-    product: product.product,
-    quantity: product.quantity,
-    price: product.price,
-  })),
-  totalAmount: session.amount_total / 100,
-  stripeSessionId: sessionId,
-});
-console.log('Processing product:', products);
+      const newOrder = new Order({
+        user: session.metadata.userId,
+        products: products.map((product) => ({
+          product: product.product,
+          quantity: product.quantity,
+          price: product.price,
+        })),
+        totalAmount: session.amount_total / 100,
+        stripeSessionId: sessionId,
+        shippingAddress: shippingAddress, // Add shipping address here
+        status: "processing", // Set initial status
+        paymentStatus: "paid"
+      });
 
       await newOrder.save();
 
