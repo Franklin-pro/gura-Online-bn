@@ -48,20 +48,13 @@ export const addToCart = async (req, res) => {
 
 export const deleteAllFromCart = async (req, res) => {
     try {
-        const { productId } = req.body;
         const user = req.user;
-
-        const initialLength = user.cartItem.length;
-        user.cartItem = user.cartItem.filter(item => item.product.toString() !== productId);
-        
-        if (user.cartItem.length === initialLength) {
-            return res.status(404).json({ message: 'Item not found in cart' });
-        }
-
+        user.cartItem = [];
         await user.save();
-        res.status(200).json({ message: 'Item removed from cart' });
+
+        res.status(200).json({ message: 'Cart cleared' });
     } catch (error) {
-        console.log("Error deleting all from cart:", error);
+        console.log("Error clearing cart:", error);
         res.status(500).json({ message: 'Internal server error' });
     }
 }
