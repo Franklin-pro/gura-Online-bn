@@ -9,6 +9,7 @@ import {
     toggleFeaturedProduct,
     getProductById,
     addRates,
+    globalSearch,
     getProductRates
 } from '../controllers/products.controller.js';
 
@@ -21,6 +22,9 @@ router.get('/featured', getProductsFeatured);
 router.get('/category/:category', getProductsByCategory);
 router.get('/recomandation', protectRoute, recomandationProducts);
 
+// Put /search BEFORE /:id
+router.get('/search', globalSearch);
+
 // Dynamic routes after
 router.get('/:id', getProductById);
 router.patch('/:id', protectRoute, isAdmin, toggleFeaturedProduct);
@@ -28,9 +32,10 @@ router.delete('/:id', protectRoute, isAdmin, deleteProduct);
 
 // Create and list at the bottom
 router.get('/', getProducts);
-router.get('/rates', protectRoute,getProductRates); // Assuming this is for admin to see all products with rates
+router.get('/rates', protectRoute,getProductRates);
 router.post('/', protectRoute, isAdmin, createProduct);
-router.post('/:id/rate',protectRoute,addRates);
+router.post('/:id/rate', protectRoute, addRates);
+
 
 
 

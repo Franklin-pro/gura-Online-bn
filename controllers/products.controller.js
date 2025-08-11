@@ -275,3 +275,34 @@ export const getProductRates = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+
+
+export const globalSearch = async (req, res) => {
+    try {
+        const { query } = req.query;
+        if (!query) {
+            return res.status(400).json({ message: "Search query is required" });
+        }
+
+        const products = await Product.find({
+            $or: [
+                { name: { $regex: query, $options: 'i' } },
+                { description: { $regex: query, $options: 'i' } }
+            ]
+        });
+
+        if (!products.length) {
+            return res.status(404).json({ message: "No products found matching the search criteria" });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: "Products fetched successfully",
+            data: products
+        });
+    } catch (error) {
+        console.error("Error during global search:", error);
+        res.status(500).json({ message: error.message });
+    }
+}
+

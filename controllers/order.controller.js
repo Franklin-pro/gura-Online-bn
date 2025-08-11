@@ -1,5 +1,6 @@
 import Order from "../models/order.model.js";
 import Product from "../models/product.model.js";
+import User from "../models/user.model.js";
 
 /**
  * @desc    Get all orders for authenticated user
@@ -91,6 +92,149 @@ export const getAllOrders = async (req, res) => {
   }
 };
 
+export const getAllOrdersAsAdmin = async (req, res) => {
+  try {
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    // Sorting options
+    const sortBy = req.query.sortBy || 'createdAt';
+    const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
+
+    // Advanced filtering options for admin
+    const { status, paymentStatus, userId, dateFrom, dateTo, minAmount, maxAmount } = req.query;
+    const query = {};
+    
+    // Status filter
+    if (status) {
+      query.status = Array.isArray(status) ? { $in: status } : status;
+    }
+    
+    // Payment status filter
+    if (paymentStatus) {
+      query.paymentStatus = Array.isArray(paymentStatus) ? { $in: paymentStatus } : paymentStatus;
+    }
+    
+    // User filter
+    if (userId) {
+      query.user = userId;
+    }
+    
+    // Date range filter
+    if (dateFrom || dateTo) {
+      query.createdAt = {};
+      if (dateFrom) query.createdAt.$gte = new Date(dateFrom);
+      if (dateTo) query.createdAt.$lte = new Date(dateTo);
+    }
+    
+    // Amount range filter
+    if (minAmount || maxAmount) {
+      query.totalAmount = {};
+      if (minAmount) query.totalAmount.$gte = parseFloat(minAmount);
+      if (maxAmount) query.totalAmount.$lte = parseFloat(maxAmount);
+    }
+
+    // Get orders with pagination and sorting
+    const orders = await Order.find(query)
+      .skip(skip)
+      .limit(limit)
+      .sort({ [sortBy]: sortOrder })
+      .populate({
+        path: 'products.product',
+        select: 'name price image description category isFeatured discount rating',
+        model: Product
+      })
+      .populate({
+        path: 'user',
+        select: 'name email',
+        model: User
+      });
+
+    // Count total orders for pagination info
+    const totalOrders = await Order.countDocuments(query);
+
+    // Transform orders data with additional admin info
+    const formattedOrders = orders.map(order => ({
+      _id: order._id,
+      orderNumber: `ORD-${order._id.toString().slice(-8).toUpperCase()}`,
+      user: {
+        _id: order.user?._id || order.user,
+        name: order.user?.name || 'Unknown User',
+        email: order.user?.email || 'unknown@example.com'
+      },
+      products: order.products.map(item => ({
+        _id: item.product?._id || item.product,
+        productId: item.product?._id || item.product,
+        name: item.product?.name || 'Product not available',
+        description: item.product?.description || '',
+        price: item.price, // Use the price at time of purchase
+        category: item.product?.category || '',
+        image: item.product?.image || '/images/product-placeholder.jpg',
+        quantity: item.quantity,
+        isFeatured: item.product?.isFeatured || false,
+        discount: item.product?.discount || 0,
+        rating: item.product?.rating || 0,
+        totalPrice: item.price * item.quantity
+      })),
+      totalAmount: order.totalAmount,
+      status: order.status,
+      paymentStatus: order.paymentStatus || 'pending',
+      shippingAddress: order.shippingAddress || {},
+      stripeSessionId: order.stripeSessionId,
+      createdAt: order.createdAt,
+      updatedAt: order.updatedAt,
+      trackingNumber: order.trackingNumber || null,
+      estimatedDelivery: order.estimatedDelivery || null,
+      // Additional admin-only fields
+      paymentMethod: order.paymentMethod || 'unknown',
+      adminNotes: order.adminNotes || '',
+      fulfillmentStatus: order.fulfillmentStatus || 'unfulfilled'
+    }));
+
+    // Additional admin statistics
+    const stats = await Order.aggregate([
+      { $match: query },
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: "$totalAmount" },
+          avgOrderValue: { $avg: "$totalAmount" },
+          pendingOrders: {
+            $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] }
+          },
+          completedOrders: {
+            $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] }
+          }
+        }
+      }
+    ]);
+
+    res.status(200).json({
+      success: true,
+      count: formattedOrders.length,
+      total: totalOrders,
+      page,
+      pages: Math.ceil(totalOrders / limit),
+      data: formattedOrders,
+      stats: stats[0] || {
+        totalRevenue: 0,
+        avgOrderValue: 0,
+        pendingOrders: 0,
+        completedOrders: 0
+      }
+    });
+
+  } catch (error) {
+    console.error("Admin Error fetching orders:", error);
+    res.status(500).json({ 
+      success: false,
+      message: "Error fetching orders",
+      error: error.message 
+    });
+  }
+};
 /**
  * @desc    Get single order details
  * @route   GET /api/v1/orders/:id

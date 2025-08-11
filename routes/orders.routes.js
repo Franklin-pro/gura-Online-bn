@@ -4,14 +4,16 @@ import {
   getOrderById, 
   updateOrderStatus,
   cancelOrder,
-  stripeWebhook
+  stripeWebhook,
+  getAllOrdersAsAdmin
 } from '../controllers/order.controller.js';
 import protectRoute, { isAdmin } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
 
 // User routes
-router.get('/all', protectRoute, getAllOrders);
+router.get('/alls', getAllOrdersAsAdmin);
+router.get('/all', getAllOrders);
 router.get('/:id', protectRoute, getOrderById);
 router.put('/:id/cancel', protectRoute, cancelOrder);
 
