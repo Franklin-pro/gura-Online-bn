@@ -7,20 +7,21 @@ import {
   stripeWebhook,
   getAllOrdersAsAdmin
 } from '../controllers/order.controller.js';
-import protectRoute, { isAdmin } from '../middleware/auth.middleware.js';
+import protectRoute from '../middleware/auth.middleware.js';
+import { isAdmin } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
 
-// User routes
-router.get('/alls', getAllOrdersAsAdmin);
-router.get('/all', getAllOrders);
+// Regular user routes (protected)
+router.get('/', protectRoute, getAllOrders);
 router.get('/:id', protectRoute, getOrderById);
 router.put('/:id/cancel', protectRoute, cancelOrder);
 
-// Admin routes
-router.put('/orders/:id/status', protectRoute, isAdmin, updateOrderStatus);
+// Admin routes (protected + admin check)
+router.get('/admin/all', protectRoute, isAdmin, getAllOrdersAsAdmin);
+router.put('/admin/:id/status', protectRoute, isAdmin, updateOrderStatus);
 
-// Webhook (no auth needed)
-router.post('/orders/webhook', express.raw({type: 'application/json'}), stripeWebhook);
+// Stripe webhook (no authentication)
+router.post('/webhook', express.raw({type: 'application/json'}), stripeWebhook);
 
 export default router;

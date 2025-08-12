@@ -9,6 +9,14 @@ import User from "../models/user.model.js";
  */
 export const getAllOrders = async (req, res) => {
   try {
+    // Validate user authentication
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized - User not authenticated"
+      });
+    }
+
     // Pagination parameters
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
@@ -34,37 +42,47 @@ export const getAllOrders = async (req, res) => {
         path: 'products.product',
         select: 'name price image description category isFeatured discount rating',
         model: Product
+      })
+      .populate({
+        path: 'user',
+        select: 'name email',
+        model: User
       });
 
     // Count total orders for pagination info
     const totalOrders = await Order.countDocuments(query);
 
-    // Transform orders data
+    // Transform orders data with consistent structure
     const formattedOrders = orders.map(order => ({
       _id: order._id,
       orderNumber: `ORD-${order._id.toString().slice(-8).toUpperCase()}`,
       user: {
-        _id: order.user,
-        name: req.user.name,
-        email: req.user.email
+        _id: order.user?._id || order.user,
+        name: order.user?.name || req.user.name || 'Unknown User',
+        email: order.user?.email || req.user.email || 'unknown@example.com'
       },
-      products: order.products.map(item => ({
-        _id: item.product?._id || item.product,
-        productId: item.product?._id || item.product,
-        name: item.product?.name || 'Product not available',
-        description: item.product?.description || '',
-        price: item.price, // Use the price at time of purchase
-        category: item.product?.category || '',
-        image: item.product?.image || '/images/product-placeholder.jpg',
-        quantity: item.quantity,
-        isFeatured: item.product?.isFeatured || false,
-        discount: item.product?.discount || 0,
-        rating: item.product?.rating || 0,
-        totalPrice: item.price * item.quantity
-      })),
-      totalAmount: order.totalAmount,
-      status: order.status,
-      paymentStatus: order.paymentStatus || 'paid',
+      products: (order.products || []).map(item => {
+        const product = item?.product;
+        const productId = product?._id ? product._id : (typeof product === 'string' ? product : null);
+        
+        return {
+          _id: productId,
+          productId: productId,
+          name: product?.name || 'Product not available',
+          description: product?.description || '',
+          price: item?.price || 0,
+          category: product?.category || '',
+          image: product?.image || '/images/product-placeholder.jpg',
+          quantity: item?.quantity || 0,
+          isFeatured: product?.isFeatured || false,
+          discount: product?.discount || 0,
+          rating: product?.rating || 0,
+          totalPrice: (item?.price || 0) * (item?.quantity || 0)
+        };
+      }),
+      totalAmount: order.totalAmount || 0,
+      status: order.status || 'pending',
+      paymentStatus: order.paymentStatus || 'pending',
       shippingAddress: order.shippingAddress || {},
       stripeSessionId: order.stripeSessionId,
       createdAt: order.createdAt,
