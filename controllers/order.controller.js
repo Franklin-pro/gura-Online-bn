@@ -1,6 +1,7 @@
 import Order from "../models/order.model.js";
 import Product from "../models/product.model.js";
 import User from "../models/user.model.js";
+import sendOrderEmail from "../utils/orderEmails.js";
 
 /**
  * @desc    Get all orders for authenticated user
@@ -329,7 +330,7 @@ export const updateOrderStatus = async (req, res) => {
   try {
     const { status, trackingNumber, carrier } = req.body;
 
-    const order = await Order.findById(req.params.id);
+    const order = await Order.findById(req.params.id).populate('user', 'name email');
     if (!order) {
       return res.status(404).json({
         success: false,
@@ -349,7 +350,8 @@ export const updateOrderStatus = async (req, res) => {
 
     await order.save();
 
-    // TODO: Send status update email to customer
+    // Send status update email to customer
+    await sendOrderEmail(order, order.user.email, order.user.name);
 
     res.status(200).json({
       success: true,
@@ -382,7 +384,7 @@ export const cancelOrder = async (req, res) => {
     const order = await Order.findOne({
       _id: req.params.id,
       user: req.user._id
-    });
+    }).populate('products.product', 'name price');
 
     if (!order) {
       return res.status(404).json({
@@ -404,9 +406,9 @@ export const cancelOrder = async (req, res) => {
     order.cancelledAt = new Date();
     await order.save();
 
-    // TODO: Process refund if payment was made
-    // TODO: Send cancellation email to customer
-    // TODO: Restore product inventory if needed
+    // Send cancellation email to customer
+    const { sendOrderStatusEmail } = await import('../utils/orderEmails.js');
+    await sendOrderStatusEmail(order, req.user.email, req.user.name);
 
     res.status(200).json({
       success: true,
@@ -434,6 +436,7 @@ export const stripeWebhook = async (req, res) => {
   let event;
 
   try {
+    const { stripe } = await import('../libs/stripe.js');
     event = stripe.webhooks.constructEvent(
       req.body,
       sig,
@@ -447,11 +450,32 @@ export const stripeWebhook = async (req, res) => {
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object;
     
-    // Update order payment status
-    await Order.findOneAndUpdate(
+    // Update order payment status and send success email
+    const order = await Order.findOneAndUpdate(
       { stripeSessionId: session.id },
-      { paymentStatus: 'paid' }
-    );
+      { paymentStatus: 'paid' },
+      { new: true }
+    ).populate('user', 'name email').populate('products.product', 'name price');
+
+    if (order) {
+      const { sendPaymentSuccessEmail } = await import('../utils/orderEmails.js');
+      await sendPaymentSuccessEmail(order, order.user.email, order.user.name);
+    }
+  }
+
+  // Handle payment failed events
+  if (event.type === 'checkout.session.expired' || event.type === 'payment_intent.payment_failed') {
+    const session = event.data.object;
+    const { sendPaymentFailedEmail } = await import('../utils/orderEmails.js');
+    
+    // Get user info from session metadata
+    const userEmail = session.customer_email || session.metadata?.userEmail;
+    const userName = session.metadata?.userName || 'Customer';
+    const amount = session.amount_total ? (session.amount_total / 100) : 0;
+    
+    if (userEmail) {
+      await sendPaymentFailedEmail(userEmail, userName, session.id, amount);
+    }
   }
 
   res.json({ received: true });

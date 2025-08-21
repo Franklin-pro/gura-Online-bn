@@ -9,6 +9,7 @@ import couponRoutes from './routes/coupon.routes.js';
 import paymentRoutes from './routes/payment.routes.js';
 import analyticsRoutes from './routes/analytic.routes.js';
 import ordersRoutes from './routes/orders.routes.js';
+import countriesRoutes from './routes/countries.routes.js';
 import cors from 'cors';
 
 
@@ -22,13 +23,18 @@ app.use(cors());
 const PORT = process.env.PORT || 5000;
 const MONGO_URL = process.env.MONGO_URL;
 
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'OK' });
+});
+
 app.use('/api/v1/auth',authRoute);
 app.use('/api/v1/products', productRoute);
 app.use('/api/v1/carts', cartRoutes);
 app.use('/api/v1/coupons',couponRoutes);
 app.use('/api/v1/payments', paymentRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
-app.use('/api/v1/orders',ordersRoutes)
+app.use('/api/v1/orders',ordersRoutes);
+app.use('/api/v1/countries', countriesRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);

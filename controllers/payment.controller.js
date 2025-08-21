@@ -77,7 +77,7 @@ export const createCheckoutSession = async (req, res) => {
 
 export const checkoutSuccess = async (req, res) => {
   try {
-    const { sessionId, shippingAddress } = req.body; // Add shippingAddress here
+    const { sessionId, shippingAddress } = req.body;
     
     if (!shippingAddress) {
       return res.status(400).json({ message: "Shipping address is required" });
@@ -112,12 +112,21 @@ export const checkoutSuccess = async (req, res) => {
         })),
         totalAmount: session.amount_total / 100,
         stripeSessionId: sessionId,
-        shippingAddress: shippingAddress, // Add shipping address here
-        status: "processing", // Set initial status
+        shippingAddress: shippingAddress,
+        status: "processing",
         paymentStatus: "paid"
       });
 
       await newOrder.save();
+      
+      // Populate order with user and product details for email
+      const populatedOrder = await Order.findById(newOrder._id)
+        .populate('user', 'name email')
+        .populate('products.product', 'name price');
+
+      // Send payment success email
+      const { sendPaymentSuccessEmail } = await import('../utils/orderEmails.js');
+      await sendPaymentSuccessEmail(populatedOrder, populatedOrder.user.email, populatedOrder.user.name);
 
       res.status(200).json({
         success: true,
@@ -127,10 +136,34 @@ export const checkoutSuccess = async (req, res) => {
         cartItems: [],
       });
     } else {
+      // Send payment failed email
+      const { sendPaymentFailedEmail } = await import('../utils/orderEmails.js');
+      const userEmail = session.customer_email || req.user?.email;
+      const userName = req.user?.name || 'Customer';
+      const amount = session.amount_total ? (session.amount_total / 100) : 0;
+      
+      if (userEmail) {
+        await sendPaymentFailedEmail(userEmail, userName, sessionId, amount);
+      }
+      
       res.status(400).json({ message: "Payment not completed." });
     }
   } catch (error) {
     console.error("Error processing successful checkout:", error);
+    
+    // Send payment failed email on error
+    try {
+      const { sendPaymentFailedEmail } = await import('../utils/orderEmails.js');
+      const userEmail = req.user?.email;
+      const userName = req.user?.name || 'Customer';
+      
+      if (userEmail) {
+        await sendPaymentFailedEmail(userEmail, userName, req.body.sessionId || 'unknown', 0);
+      }
+    } catch (emailError) {
+      console.error('Error sending payment failed email:', emailError);
+    }
+    
     res.status(500).json({ message: "Error processing successful checkout", error: error.message });
   }
 };
